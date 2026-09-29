@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: goree
+      POSTGRES_PASSWORD: goree
+      POSTGRES_DB: goree
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goree"]
+      interval: 3s
+      retries: 10
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://goree:goree@db:5432/goree
+      DOSSIER_CLES: /data/cles
+      DOSSIER_PHOTOS: /data/photos
+    ports: ["8000:8000"]
+    volumes: [apidata:/data]
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  apidata:
