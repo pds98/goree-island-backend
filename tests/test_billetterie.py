@@ -136,3 +136,32 @@ def test_paiement_echoue_libere_le_quota(client, monkeypatch):
     cmd2 = acheter_site(client, verification_id=v).json()
     assert _webhook(client, _reference(client, cmd2["commande_id"]),
                     "REUSSI").json()["statut"] == "PAYEE"
+
+
+# --- Mode démo d'identité (app mobile sans moteur biométrique) ----------------
+
+def _verifier_demo(client, numero="1751199204567"):
+    return client.post("/api/v3/identite/verifications",
+                       data={"numero_cni": numero, "nom": "NDIAYE Fatou"},
+                       files={"image_cni": ("cni.jpg", b"\xff\xd8photo-cni", "image/jpeg"),
+                              "selfie": ("selfie.jpg", b"\xff\xd8vrai-selfie", "image/jpeg")})
+
+
+def test_mode_demo_refuse_si_inactif(client):
+    r = _verifier_demo(client)
+    assert r.status_code == 403 and r.json()["code"] == "MODE_DEMO_INACTIF"
+
+
+def test_mode_demo_selfie_devient_photo_de_controle(client, monkeypatch):
+    monkeypatch.setattr("app.services.identite.settings", replace(settings, identite_demo=True))
+    v = _verifier_demo(client).json()
+    assert v["cni_4_derniers"] == "4567"
+    billet = acheter_site(client, verification_id=v["verification_id"]).json()["billets"][0]
+    from tests.conftest import creer_agent
+    site = creer_agent(client, "ENTREE_SITE")
+    scan = client.post("/api/v3/scan", json={"jeton": billet["coupons"][0]["jeton"]},
+                       headers=site).json()
+    assert client.get(scan["billet"]["photo_url"], headers=site).content == b"\xff\xd8vrai-selfie"
+    # Le quota s'applique aussi en mode démo.
+    v2 = _verifier_demo(client).json()
+    assert acheter_site(client, verification_id=v2["verification_id"]).json()["code"] == "QUOTA_CNI"

@@ -52,6 +52,11 @@ class Settings:
         "SECRET_WEBHOOK_PAIEMENT", "dev-webhook-secret"))
     delai_expiration_commande_min: int = 15
 
+    # --- Identité ---------------------------------------------------------------
+    # true : l'app peut envoyer le numéro de CNI saisi à la main (pas d'OCR ni de
+    # moteur biométrique). Développement et démos UNIQUEMENT.
+    identite_demo: bool = field(default_factory=lambda: _bool("IDENTITE_DEMO", False))
+
     # --- Métier --------------------------------------------------------------
     commission_partenaire: float = 0.12
     duree_validite_verification_min: int = 30

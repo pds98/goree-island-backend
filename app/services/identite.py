@@ -64,7 +64,26 @@ class FournisseurSimule:
                                422) from err
 
 
+class FournisseurDemo:
+    """
+    MODE DÉMO (IDENTITE_DEMO=true, JAMAIS en production) : l'app mobile
+    envoie de VRAIES photos (CNI + selfie), mais sans moteur biométrique :
+    le numéro de CNI est saisi à la main à la place de l'OCR, et la
+    comparaison des visages est considérée comme réussie. Le selfie devient
+    la photo de contrôle affichée à l'agent — le parcours est donc complet
+    de bout en bout sur un vrai téléphone.
+    """
+
+    def analyser_saisie(self, numero: str, nom: str, selfie: bytes) -> ResultatBiometrique:
+        if not selfie:
+            raise ErreurMetier("SELFIE_MANQUANT", "Prends un selfie.", 422)
+        return ResultatBiometrique(numero=numero.strip(), nom=nom.strip() or "Titulaire",
+                                   expiration=date(2099, 12, 31), vivant=True,
+                                   score_visage=0.96, photo_controle=selfie)
+
+
 fournisseur_identite: FournisseurIdentite = FournisseurSimule()
+fournisseur_demo = FournisseurDemo()
 
 
 def format_nin_valide(numero: str) -> bool:
@@ -72,8 +91,15 @@ def format_nin_valide(numero: str) -> bool:
     return numero.isdigit() and 13 <= len(numero) <= 17
 
 
-def verifier(db: Session, image_cni: bytes, selfie: bytes) -> VerificationIdentite:
-    r = fournisseur_identite.analyser(image_cni, selfie)
+def verifier(db: Session, image_cni: bytes, selfie: bytes,
+             numero_saisi: str | None = None, nom_saisi: str = "") -> VerificationIdentite:
+    if numero_saisi is not None:
+        if not settings.identite_demo:
+            raise ErreurMetier("MODE_DEMO_INACTIF",
+                               "La saisie manuelle du numéro n'est permise qu'en mode démo.", 403)
+        r = fournisseur_demo.analyser_saisie(numero_saisi, nom_saisi, selfie)
+    else:
+        r = fournisseur_identite.analyser(image_cni, selfie)
 
     if not format_nin_valide(r.numero):
         raise ErreurMetier("CNI_ILLISIBLE", "Numéro de CNI illisible ou mal formé.", 422)

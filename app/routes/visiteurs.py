@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import date
 
-from fastapi import APIRouter, Depends, File, Header, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, Request, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -67,8 +67,12 @@ def acheter_chaloupe(achat: AchatChaloupe, db: Session = Depends(get_db)):
 @router.post("/identite/verifications", response_model=VerificationOut, status_code=201,
              summary="Tarif national : scan CNI + selfie vivant")
 async def verifier_identite(image_cni: UploadFile = File(...), selfie: UploadFile = File(...),
+                            numero_cni: str | None = Form(None,
+                                description="MODE DÉMO uniquement : numéro saisi à la place de l'OCR"),
+                            nom: str = Form(""),
                             db: Session = Depends(get_db)):
-    verif = identite.verifier(db, await image_cni.read(), await selfie.read())
+    verif = identite.verifier(db, await image_cni.read(), await selfie.read(),
+                              numero_saisi=numero_cni, nom_saisi=nom)
     return VerificationOut(verification_id=verif.id, nom_carte=verif.nom_carte,
                            cni_4_derniers=verif.cni_4_derniers, expire_le=verif.expire_le)
 
